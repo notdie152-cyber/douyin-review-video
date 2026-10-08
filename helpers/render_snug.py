@@ -29,7 +29,9 @@ fc = f"[0:v]split={n + 1}[base]" + "".join(f"[s{i}]" for i in range(n)) + ";"
 prev = "base"
 for i, b in enumerate(bands):
     h = b["bottom"] - b["top"]
-    fc += (f"[s{i}]crop=1080:{h}:0:{b['top']},boxblur={a.blur},eq=saturation={a.saturation}[bl{i}];"
+    lr, lp = (int(v) for v in a.blur.split(":"))
+    lr = min(lr, h // 4 - 1)          # boxblur limit: chroma radius < h/4 (yuv420) -- thin bands need less
+    fc += (f"[s{i}]crop=1080:{h}:0:{b['top']},boxblur={lr}:{lp},eq=saturation={a.saturation}[bl{i}];"
            f"[{prev}][bl{i}]overlay=0:{b['top']}:enable='between(t,{b['start']},{b['end']})'[v{i}];")
     prev = f"v{i}"
 fc += f"[{prev}]ass=filename='{a.ass}':fontsdir='{os.path.normpath(FONTS)}'[out]"   # subtitles LAST (video-use Hard Rule 1)

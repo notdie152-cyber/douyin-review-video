@@ -16,7 +16,7 @@ This was approved on 2026-10-08 on a real ad (jawline lift mask). Apply these va
 | cắt những cảnh highlight của sản phẩm | Pick shots of the product in use: applying, stretching the fabric, wrapping the jaw, hands lifting the face, a before→after reveal. Match one shot group to each script beat. |
 | loại bỏ phụ đề tiếng Trung | Snug blur strip over the old captions (below). The creator's tolerance for any legible Chinese is zero. |
 | loại bỏ đoạn show sản phẩm hiển thị rõ chữ Trung | Never use a frame that shows the box, sachet, pamphlet, or brand name (e.g. TONGYANJI), or a `抖音@xxx` watermark. A small logo printed on the mask fabric is OK. Unrelated props (a drink pouch) are OK if nothing on them is legible. |
-| tạo voice over tiếng Anh | If an `.mp3`/`.wav` VO is already in the folder, transcribe it and check the text against the script; don't regenerate. Otherwise generate one with the ElevenLabs TTS skill from the script. Mute all source audio. |
+| tạo voice over tiếng Anh | If an `.mp3`/`.wav` VO is already in the folder, transcribe it and check the text against the script; don't regenerate. Otherwise generate it with **the default voice "Beauty", `voice_id BPLivKkO9sN6vs4a43o2`** (the creator's cloned voice), unless they name another. Mute all source audio. |
 | chạy phụ đề tự động, karaoke, chữ trắng viền đen | `helpers/karaoke_ass.py` (style below). |
 
 ## Pipeline
@@ -75,6 +75,32 @@ If the creator sends a new reference video, identify its font by shape, not by e
 - The shell is zsh: write `${top}` inside strings, never `$top:enable`, because `:e` is a zsh modifier and silently eats characters.
 - Contact sheets made with `fps=1,tile` after `-ss`/`-t` returned the wrong time range. Extract single frames with `-ss T -frames:v 1` and tile them in time order.
 - `rm` with globs inside `cd` gets blocked by the safety check. Overwrite files instead, or leave the cleanup to the creator.
+
+
+## ElevenLabs TTS (defaults)
+
+- **Voice:** "Beauty", `BPLivKkO9sN6vs4a43o2`. This is the creator's standing default.
+- `POST /v1/text-to-speech/{voice_id}?output_format=mp3_44100_128` with `model_id: eleven_multilingual_v2` and `voice_settings: {stability 0.45, similarity_boost 0.8, style 0.25, use_speaker_boost true}`.
+- The key in `video-use/.env` **lacks `voices_read`**, so you can't list or search voices: ask for an ID instead of guessing. The plan is below Creator tier, so `mp3_44100_192` is refused; use 128.
+- Strip `™` and similar symbols from the script before sending. Transcribe the generated VO with Scribe (`video-use/helpers/transcribe.py --edit-dir <batch>`) to get word timings for captions and line-level cuts.
+
+## Batch mode: N videos from one folder of clips
+
+Use this when the creator asks for several separate videos (e.g. "làm 6 video riêng biệt … xuất Scale8, Scale9…"), each built from 5–6 of the best source clips, one script per video.
+
+1. **Scan every clip automatically.** Extract frames at 2fps (540 wide, using `ffmpeg -nostdin`, or ffmpeg eats a shell `while read` loop's stdin and mangles the IDs). Run `helpers/vision_ocr.swift` on them: compile it with `swiftc -O vision_ocr.swift -o vision_ocr`. It uses Apple Vision `zh-Hans`+`en-US` and outputs one JSON line per frame with text boxes. Per frame, record:
+   - Chinese caption lines: CJK text, y 0.45–0.97, centred, h < 0.07 → caption bands later.
+   - Everything else that is CJK, or a brand word (`TONG|YANJ|COLL|TRIP|PEPT|FIRM|MOIST|SERUM|HYAL|\d+G`) → reject the frame plus ±0.5s. Mirrored t-shirt prints (e.g. "ILMAYOMOT") are false positives.
+   - The share of orange pixels (`R>190, 80<G<175, B<90, R-G>50`): mask on screen means a highlight.
+2. **OCR is not enough on its own.** White sachets and boxes carry text too small to read at 540px, and other brands' bandages have no text at all. Build contact sheets of the clean windows (4 frames each) and tag shot types by eye: puffy/sagging before shot, side sleeping, stretching the fabric, ear loops, wearing, chores while wearing, peel-off, bare-face result, cold tools (roller/gua sha). Then build **2fps strips of every candidate range** and write down exact clean sub-ranges.
+3. **Plan per script line.** Each script sentence gets a list of `[src, start, end]` ranges matched to its meaning, stored in `plan.json`, plus a small spare list per video. Hook and problem lines run long (7–12s each), so give them ≥ the line's VO length in footage. Keep each video's main clips different from the other videos'.
+4. **Assemble** with `helpers/build_batch_example.py`, which shows the working pattern. It aligns script lines to Scribe words with difflib to get line spans. It fills each span with shots of 1.0–3.8s, round-robin across that line's ranges, and absorbs slivers under 0.8s into a neighbour. For each segment it takes the caption **y-clusters** from the OCR boxes, using only frames inside the segment (±0.25s), so one stray line can't create a 900px band. It uses one fixed caption height per video (the median caption centre), merges our caption into a band when it is within 140px, then runs mix → karaoke → `render_snug.py`.
+5. **Output** to `<videos_dir>/output/<Name>.mp4`, then run the normal verification bar on every file.
+6. **Verify the renders with 10fps OCR, not just 2fps.** In the first batch, 2fps checks missed three kinds of leak. Every one of them was caught by OCR-ing the *rendered* files at 10fps and viewing each hit:
+   - **Box flashes 3–4 frames long at a cut**, e.g. a TONGYANJI sachet edited between two shots by the original creator. Plan cuts as whole frames (`-frames:v N`, with durations rounded to 1/30s); a `-t` float cut drifts and can land on those frames. **Start every shot ≥ 0.2s into a source**, because a creator's own sticker/title card often sits in the first frames.
+   - **Small creator watermarks** (`高小高`, `抖音号：黄多多`, `博主：张大正`, `抖音@xxx搬运必究`), often semi-transparent and in a corner. Scan OCR for `抖音|博主|号：|搬运|@` and drop those sources outright.
+   - **Caption heights that change within one clip.** Cluster caption lines by *centre* (±70px), never by chaining overlapping boxes, or a stray line merges into a 900px band. Look ±1.5s around the shot. Feed the y-boxes from the render's OCR back into the band builder (`extra_caps.json`) and re-render.
+   - `render_snug.py` clamps the boxblur radius to `band_h/4-1`. A band under ~90px tall otherwise crashes ffmpeg (`chroma_param radius must be < 20`).
 
 ## Deliverable
 
