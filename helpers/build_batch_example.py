@@ -73,8 +73,8 @@ def build_edl(name):
     spare = [tuple(r) for r in SPARES[name]]
     segs, t = [], 0.0
 
-    def remaining(r):
-        return r[2] - r[1] - used.get(r, 0.0)
+    def remaining(r):              # never read past the end of the source file
+        return min(r[2], src[r[0]]["dur"] - 0.1) - r[1] - used.get(r, 0.0)
 
     for li, (a, b) in enumerate(spans):
         need = b - t

@@ -49,6 +49,17 @@ def caption_cy(t):
     return a.default_cy
 
 
+def cy_changes(t0, t1):
+    """times inside (t0,t1) where the caption centre must move (a band starts/ends there)"""
+    ts = sorted({x for b in bands for x in (b["start"], b["end"]) if t0 + 0.05 < x < t1 - 0.05})
+    out, cur = [], caption_cy(t0)
+    for x in ts:
+        c = caption_cy(x + 1e-4)
+        if abs(c - cur) > 12:
+            out.append(x); cur = c
+    return out
+
+
 words = [dict(w, start=w["start"] + a.offset, end=w["end"] + a.offset)
          for w in json.load(open(a.transcript))["words"] if w["type"] == "word"]
 
@@ -84,13 +95,20 @@ for ci, cue in enumerate(cues):
         if nxt_start - cue[-1]["end"] < 0.35:
             end = nxt_start                     # hold through short gaps: no flicker
         end = min(end, nxt_start)
-    parts = []
-    for wi, w in enumerate(cue):
-        w_end = cue[wi + 1]["start"] if wi + 1 < len(cue) else w["end"]
-        k = max(1, int(round((w_end - w["start"]) * 100)))
-        parts.append(f"{{\\kf{k}}}" + re.sub(r"[.,!?]+$", "", w["text"]).upper())
-    body = f"{{\\an5\\pos(540,{caption_cy(start)})\\fad(60,0)}}" + " ".join(parts)
-    lines.append(f"Dialogue: 0,{ts(start)},{ts(end)},Kara,,0,0,0,,{body}")
+    # split the cue where the blur band under it moves, so the text is always centred in the active band
+    pieces = [start] + cy_changes(start, end) + [end]
+    for p0, p1 in zip(pieces[:-1], pieces[1:]):
+        parts = []
+        for wi, w in enumerate(cue):
+            w_end = cue[wi + 1]["start"] if wi + 1 < len(cue) else w["end"]
+            ws = max(w["start"], p0)
+            k = 0 if w_end <= p0 else max(1, int(round((w_end - ws) * 100)))   # already sung -> filled at once
+            if wi == 0 and w["start"] > p0:
+                k = max(1, int(round((w_end - p0) * 100)))
+            parts.append(f"{{\\kf{k}}}" + re.sub(r"[.,!?]+$", "", w["text"]).upper())
+        fad = "\\fad(60,0)" if p0 == start else ""
+        body = f"{{\\an5\\pos(540,{caption_cy(p0 + 1e-4)}){fad}}}" + " ".join(parts)
+        lines.append(f"Dialogue: 0,{ts(p0)},{ts(p1)},Kara,,0,0,0,,{body}")
 
 # PrimaryColour = sung (highlight), SecondaryColour = not yet sung (white)
 header = f"""[Script Info]

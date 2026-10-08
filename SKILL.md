@@ -96,12 +96,16 @@ Use this when the creator asks for several separate videos (e.g. "làm 6 video r
 3. **Plan per script line.** Each script sentence gets a list of `[src, start, end]` ranges matched to its meaning, stored in `plan.json`, plus a small spare list per video. Hook and problem lines run long (7–12s each), so give them ≥ the line's VO length in footage. Keep each video's main clips different from the other videos'.
 4. **Assemble** with `helpers/build_batch_example.py`, which shows the working pattern. It aligns script lines to Scribe words with difflib to get line spans. It fills each span with shots of 1.0–3.8s, round-robin across that line's ranges, and absorbs slivers under 0.8s into a neighbour. For each segment it takes the caption **y-clusters** from the OCR boxes, using only frames inside the segment (±0.25s), so one stray line can't create a 900px band. It uses one fixed caption height per video (the median caption centre), merges our caption into a band when it is within 140px, then runs mix → karaoke → `render_snug.py`.
 5. **Output** to `<videos_dir>/output/<Name>.mp4`, then run the normal verification bar on every file.
-6. **Verify the renders with 10fps OCR, not just 2fps.** In the first batch, 2fps checks missed three kinds of leak. Every one of them was caught by OCR-ing the *rendered* files at 10fps and viewing each hit:
-   - **Box flashes 3–4 frames long at a cut**, e.g. a TONGYANJI sachet edited between two shots by the original creator. Plan cuts as whole frames (`-frames:v N`, with durations rounded to 1/30s); a `-t` float cut drifts and can land on those frames. **Start every shot ≥ 0.2s into a source**, because a creator's own sticker/title card often sits in the first frames.
-   - **Small creator watermarks** (`高小高`, `抖音号：黄多多`, `博主：张大正`, `抖音@xxx搬运必究`), often semi-transparent and in a corner. Scan OCR for `抖音|博主|号：|搬运|@` and drop those sources outright.
-   - **Caption heights that change within one clip.** Cluster caption lines by *centre* (±70px), never by chaining overlapping boxes, or a stray line merges into a 900px band. Look ±1.5s around the shot. Feed the y-boxes from the render's OCR back into the band builder (`extra_caps.json`) and re-render.
-   - `render_snug.py` clamps the boxblur radius to `band_h/4-1`. A band under ~90px tall otherwise crashes ffmpeg (`chroma_param radius must be < 20`).
-
-## Deliverable
-
-Write `edit/final_karaoke.mp4` (or whatever name the creator asks for). Keep `bands.json`, `master_karaoke.ass`, and `project.md` next to it, and append a session entry to `project.md`.
+6. **Snug bands (approved 2026-10-08, after "quá nhiều lớp phủ mờ thừa thãi").** Build the bands from **10fps OCR of exactly the frames each shot uses** (`helpers/seg_bands.py`: extract with `-frames:v ceil(nf/3)` after `select=not(mod(n,3))`; getting this count wrong reads 3× past the shot). Rules:
+   - Each caption line position in a shot gets **one band**: the line extent plus 20px of padding, at least 120px tall. Stack lines only when they are on screen together within 30px (a 2-line caption). Never take the union of everything near the shot; that is what produced the stacked bands the creator rejected.
+   - A band covers the whole shot if its caption shows in ≥25% of the shot's frames. Otherwise it runs from its first to last appearance ±0.3s, snapped to the cut when within 0.5s of it.
+   - If OCR finds nothing in a shot but the clip normally has captions, fall back to the clip's dominant caption line from the full-clip scan.
+   - At most one band is on screen at a time, except for a genuine 2-line caption.
+   - The English caption is centred in the active band. `karaoke_ass.py --bands` **splits a cue at a band change**: words already sung get `\kf0`, the current word continues, and the line moves with the cut.
+7. **Verify, then feed back.** OCR the render at 10fps and run `helpers/leak_feedback.py`. It adds every Chinese hit with confidence ≥0.5 that lies outside a band, *with its time*, to `leak_boxes.json`. Re-run `seg_bands.py` and the render until it reports 0. Look at low-confidence hits by eye; they are usually shirt prints or our own caption merged with background.
+8. **Pitfalls found in this batch:**
+   - **A range past the end of the source** produces a short clip, and every later cut drifts (5 frames = bands 0.17s late). Clamp ranges to `source_dur - 0.1` and count frames per clip after extraction.
+   - **Box flashes 3–4 frames long at a cut.** Cut on whole frames, and start every shot ≥0.2s into a source, because the creator's own sticker or title card often sits in the first frames.
+   - **Creator watermarks** (`高小高`, `抖音号：黄多多`, `博主：张大正`, `抖音@xxx搬运必究`): drop those sources outright.
+   - **Packaging hidden under oversized bands.** Once bands are snug, re-check every shot for packaging text (`TONGYANJI`, `专利`, `净含量`, `FIRM SKIN`, ingredient infographics) with the per-shot 10fps OCR, and swap the shot out rather than blurring it.
+   - `render_snug.py` clamps the boxblur radius to `band_h/4-1`; thinner bands otherwise crash ffmpeg.
