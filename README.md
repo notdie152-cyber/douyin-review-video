@@ -4,7 +4,7 @@ A Claude Code skill that turns scraped Douyin/TikTok product clips and an Englis
 
 - Uses highlight shots only, and drops any shot that shows Chinese packaging or brand text.
 - Covers burned-in Chinese captions with snug blur bands, measured automatically per clip.
-- Burns in karaoke captions in **Phudu Black** (bundled): white text, black outline, and the spoken word sweeps to yellow.
+- Burns in karaoke captions in **Fira Sans Condensed Black Italic** (bundled; Phudu Black also included): white text, black outline, and the spoken word sweeps to yellow.
 - Replaces the audio with the English voiceover, plus optional music ducked under the voice, mastered to −14 LUFS.
 
 ## Install
@@ -32,4 +32,5 @@ See `SKILL.md` for the full pipeline and the approved values.
 
 ## Font license
 
-`fonts/Phudu-Black.ttf` is [Phudu](https://github.com/duongtrtype/DTPhudu) © 2022 The Phudu Project Authors, licensed under the SIL Open Font License 1.1 (see `fonts/OFL.txt`).
+- `fonts/FiraSansCondensed-BlackItalic.ttf` is [Fira Sans](https://github.com/mozilla/Fira) © 2012-2015 The Mozilla Foundation and Telefonica S.A., licensed under the SIL Open Font License 1.1 (see `fonts/OFL-FiraSans.txt`).
+- `fonts/Phudu-Black.ttf` is [Phudu](https://github.com/duongtrtype/DTPhudu) © 2022 The Phudu Project Authors, licensed under the SIL Open Font License 1.1 (see `fonts/OFL-Phudu.txt`).

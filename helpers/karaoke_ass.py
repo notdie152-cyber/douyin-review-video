@@ -1,11 +1,14 @@
 """Karaoke ASS captions from an ElevenLabs Scribe word-level transcript.
 
-Style (approved 2026-10-08): Phudu Black (bundled in ../fonts, OFL; cloned from
-the creator's reference video) @ 1080x1920, UPPERCASE, white text, thick black
-outline + small drop shadow, the spoken word sweeps to yellow #FFE600 (\\kf).
-render_snug.py passes fontsdir so libass finds the bundled font. Width-aware
-chunking: ~3 words per cue, closes early instead of ever wrapping. The font size
-is never shrunk to fit; long words get their own cue instead.
+Style (approved 2026-10-08): Fira Sans Condensed Black Italic, bundled in ../fonts
+(OFL). The font was cloned from the creator's reference video mat1.mov. Size 84 on
+1080x1920 matches mat1's ~50px cap height. UPPERCASE, white text, black outline 6
++ shadow 2, and the spoken word sweeps to yellow #FFE600 (\\kf). render_snug.py
+passes fontsdir so libass finds the bundled faces.
+Alternative bundled face: --font "Phudu Black" --italic 0 --size 80 --px-per-char 40.
+
+Width-aware chunking: ~3 words per cue, closes early instead of ever wrapping. The
+font size is never shrunk to fit; long words get their own cue instead.
 
 Each cue is centred (\\an5\\pos) inside the cover band active at the cue's start
 time (bands.json from detect_captions.py), so the blur strip hugs the caption.
@@ -15,14 +18,15 @@ Outside any band, captions sit at --default-cy.
 """
 import argparse, json, re
 
-SIZE_DEFAULT, PXC_DEFAULT = 80, 40
+SIZE_DEFAULT, PXC_DEFAULT = 84, 41
 
 ap = argparse.ArgumentParser()
 ap.add_argument("transcript")
 ap.add_argument("--bands", default=None)
 ap.add_argument("-o", "--out", default="master_karaoke.ass")
 ap.add_argument("--offset", type=float, default=0.0, help="shift if the VO starts later in the output")
-ap.add_argument("--font", default="Phudu Black")
+ap.add_argument("--font", default="Fira Sans Condensed Black")
+ap.add_argument("--italic", type=int, default=1, help="1 = use the font's real italic face (needs it in fontsdir)")
 ap.add_argument("--size", type=int, default=SIZE_DEFAULT)
 ap.add_argument("--px-per-char", type=int, default=PXC_DEFAULT)  # Phudu Black caps, conservative
 ap.add_argument("--safe-w", type=int, default=940)
@@ -98,7 +102,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Kara,{a.font},{a.size},{a.hilite},{WHITE},{BLACK},&H80000000,0,0,0,0,100,100,0,0,1,{a.outline},{a.shadow},5,40,40,0,1
+Style: Kara,{a.font},{a.size},{a.hilite},{WHITE},{BLACK},&H80000000,0,{-1 if a.italic else 0},0,0,100,100,0,0,1,{a.outline},{a.shadow},5,40,40,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text
