@@ -1,7 +1,9 @@
 """Karaoke ASS captions from an ElevenLabs Scribe word-level transcript.
 
-Style (approved 2026-10-08): Arial Black 66 @ 1080x1920, UPPERCASE, white text,
-black outline 4, the spoken word sweeps to yellow #FFE600 (\\kf). Width-aware
+Style (approved 2026-10-08): Phudu Black (bundled in ../fonts, OFL; cloned from
+the creator's reference video) @ 1080x1920, UPPERCASE, white text, thick black
+outline + small drop shadow, the spoken word sweeps to yellow #FFE600 (\\kf).
+render_snug.py passes fontsdir so libass finds the bundled font. Width-aware
 chunking: ~3 words per cue, closes early instead of ever wrapping. The font size
 is never shrunk to fit; long words get their own cue instead.
 
@@ -13,19 +15,23 @@ Outside any band, captions sit at --default-cy.
 """
 import argparse, json, re
 
+SIZE_DEFAULT, PXC_DEFAULT = 80, 40
+
 ap = argparse.ArgumentParser()
 ap.add_argument("transcript")
 ap.add_argument("--bands", default=None)
 ap.add_argument("-o", "--out", default="master_karaoke.ass")
 ap.add_argument("--offset", type=float, default=0.0, help="shift if the VO starts later in the output")
-ap.add_argument("--font", default="Arial Black")
-ap.add_argument("--size", type=int, default=66)
-ap.add_argument("--px-per-char", type=int, default=50)   # Arial Black caps @66, conservative
+ap.add_argument("--font", default="Phudu Black")
+ap.add_argument("--size", type=int, default=SIZE_DEFAULT)
+ap.add_argument("--px-per-char", type=int, default=PXC_DEFAULT)  # Phudu Black caps, conservative
 ap.add_argument("--safe-w", type=int, default=940)
 ap.add_argument("--words", type=int, default=3)
 ap.add_argument("--max-words", type=int, default=4)
 ap.add_argument("--default-cy", type=int, default=1455)  # ~76% of frame height
 ap.add_argument("--hilite", default="&H0000E6FF")       # ASS BGR: #FFE600
+ap.add_argument("--outline", type=float, default=6)
+ap.add_argument("--shadow", type=float, default=2)
 a = ap.parse_args()
 
 WHITE, BLACK = "&H00FFFFFF", "&H00000000"
@@ -92,7 +98,7 @@ ScaledBorderAndShadow: yes
 
 [V4+ Styles]
 Format: Name, Fontname, Fontsize, PrimaryColour, SecondaryColour, OutlineColour, BackColour, Bold, Italic, Underline, StrikeOut, ScaleX, ScaleY, Spacing, Angle, BorderStyle, Outline, Shadow, Alignment, MarginL, MarginR, MarginV, Encoding
-Style: Kara,{a.font},{a.size},{a.hilite},{WHITE},{BLACK},&H80000000,0,0,0,0,100,100,0,0,1,4,1,5,40,40,0,1
+Style: Kara,{a.font},{a.size},{a.hilite},{WHITE},{BLACK},&H80000000,0,0,0,0,100,100,0,0,1,{a.outline},{a.shadow},5,40,40,0,1
 
 [Events]
 Format: Layer, Start, End, Style, Name, MarginL, MarginR, MarginV, Effect, Text

@@ -8,9 +8,10 @@ the rejection of the earlier eq=brightness=-0.18 band).
   python render_snug.py edit/base_video.mp4 edit/bands.json edit/master_karaoke.ass \
       --audio edit/mix.m4a -o edit/final.mp4
 """
-import argparse, json, subprocess
+import argparse, json, os, subprocess
 
 FF = "/opt/homebrew/opt/ffmpeg-full/bin/ffmpeg"   # plain brew ffmpeg has no libass
+FONTS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "fonts")
 
 ap = argparse.ArgumentParser()
 ap.add_argument("base")
@@ -31,7 +32,7 @@ for i, b in enumerate(bands):
     fc += (f"[s{i}]crop=1080:{h}:0:{b['top']},boxblur={a.blur},eq=saturation={a.saturation}[bl{i}];"
            f"[{prev}][bl{i}]overlay=0:{b['top']}:enable='between(t,{b['start']},{b['end']})'[v{i}];")
     prev = f"v{i}"
-fc += f"[{prev}]ass={a.ass}[out]"   # subtitles LAST (video-use Hard Rule 1)
+fc += f"[{prev}]ass=filename='{a.ass}':fontsdir='{os.path.normpath(FONTS)}'[out]"   # subtitles LAST (video-use Hard Rule 1)
 
 subprocess.run([FF, "-v", "error", "-y", "-i", a.base, "-i", a.audio, "-filter_complex", fc,
                 "-map", "[out]", "-map", "1:a:0", "-c:v", "libx264", "-crf", "18", "-preset", "medium",

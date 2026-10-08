@@ -33,11 +33,20 @@ This was approved on 2026-10-08 on a real ad (jawline lift mask). Apply these va
 
 ## Karaoke caption style (approved)
 
-- Arial Black 66 on a 1080×1920 canvas, UPPERCASE, trailing punctuation stripped.
-- **White text, black outline 4, shadow 1.** The word being spoken sweeps to **yellow #FFE600** (`\kf`); words not yet spoken stay white.
-- Each cue holds about 3 words, max 4, and closes early on punctuation, a pause of 0.3s or more, or when the estimated width passes 940px. Never wrap, and never shrink the font to make a long cue fit. Long words get their own cue.
+- **Font: Phudu Black.** It is bundled at `fonts/Phudu-Black.ttf` under the SIL OFL license (`fonts/OFL.txt`). The creator chose it from a reference video (`video-chua-font-chu.mp4`), and it was identified by mask-matching against 267 Vietnamese-capable Google Fonts. Its tell is the curved-arm **Y** ("NGÀY", "ĐÂY"). The font is condensed, heavy, slightly rounded, and supports Vietnamese diacritics. `render_snug.py` passes `fontsdir=<skill>/fonts` to libass, so the font doesn't need to be installed on the machine. If you render the ASS any other way, pass the same `fontsdir`, or libass silently falls back to another face. Check by running ffmpeg with `-v verbose` and looking for `Loading font file '.../Phudu-Black.ttf'`.
+- Size 80 on a 1080×1920 canvas gives a cap height of about 54px. UPPERCASE, trailing punctuation stripped.
+- **White text, black outline 6, shadow 2**, like the reference. The word being spoken sweeps to **yellow #FFE600** (`\kf`); words not yet spoken stay white.
+- Each cue holds about 3 words, max 4, and closes early on punctuation, a pause of 0.3s or more, or when the estimated width passes 940px (40px per character for Phudu at size 80). Never wrap, and never shrink the font to make a long cue fit. Long words get their own cue.
 - 60ms fade-in. A cue is held until the next one starts when the gap is under 0.35s, so captions don't flicker.
 - Each cue is centred inside the blur band active at its start time (`\an5\pos(540, band centre)`). Where there's no band, the centre is y=1455 (~76%).
+
+### Cloning a font from another reference video
+
+If the creator sends a new reference video, identify its font by shape, not by eye:
+1. Build a text mask from the reference: bright white or yellow pixels whose surrounding ring is mostly dark outline (connected components, keeping only those with more than 50% dark pixels in the ring).
+2. Pull the family list from `https://fonts.google.com/metadata/fonts`, keeping families with the `vietnamese` subset that are Display, or Sans Serif with weight ≥ 700. Download the heaviest weight of each via `fonts.googleapis.com/css2?family=X:wght@N` (an old User-Agent gets you TTF).
+3. Render the same line in every font and score it as mask IoU × (aspect-ratio similarity)². Then compare the top 8 by eye against the real crop: distinctive glyphs (Y, G, Q, Ư) decide it.
+4. Bundle the font only if it is OFL or Apache licensed, together with its license file.
 
 ## Cover bands (approved)
 
