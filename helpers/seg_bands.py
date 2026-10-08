@@ -1,18 +1,34 @@
-"""Snug bands from 10fps OCR of exactly the frames each segment uses.
+"""Stage 4 - snug blur bands from 10fps OCR of exactly the frames each shot uses (approved 2026-10-08).
 
-For every segment of <Name>/edl.json: extract its frames at 10fps from the source
-(same -ss/-frames as the cut), OCR them, cluster Chinese caption lines by centre,
-and emit ONE band per caption position, gated to the time that position is on
-screen (+-0.15s). Writes <Name>/bands.json (dominant band first per segment).
-usage: python3 seg_bands.py Scale8 [...]
+Per shot of <Name>/edl.json: extract its frames at 10fps (same -ss, -frames:v ceil(nf/3) after select),
+OCR them, cluster Chinese caption lines by centre (+-40px), merge 2-line captions, and emit ONE band per
+caption position: line extent +20px pad, min 120px tall. A band covers the whole shot if its caption shows in
+>=25% of the shot's frames, else first..last appearance +-0.3s (snapped to a cut within 0.5s). Shots where
+OCR sees nothing but whose clip normally has captions get the clip's dominant line. leak_boxes.json (from
+verify_leaks.py) is folded in with timestamps. Writes <Name>/bands.json.
+
+  python3 seg_bands.py Scale8 [...]       (cwd = batch dir)
 """
 import json, os, re, subprocess, sys, concurrent.futures as cf
-B = os.path.dirname(os.path.abspath(__file__))
-SCAN = "/private/tmp/claude-501/-Users-chien-Edit-Video-Claude/df56e4c8-d49b-44f2-ac7c-4a8fa4ed2e7a/scratchpad/scan"
-OCR = f"{SCAN}/ocr"
-src = json.load(open(f"{SCAN}/sources.json"))
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+from common import B, SCAN, ocr_bin, sources
+OCR = ocr_bin()
+src = sources()
 CJK = re.compile(r"[一-鿿]")
 PAD, MIN_H, CAP_H = 20, 120, 64
+# text that is NOT a subtitle: packaging, brand, ingredient cards. These shots must be SWAPPED, never blurred.
+BRAND = re.compile(r"TONG|YANJ|PATENT|COLLAG|FIRM|MOIST|SKIN|SERUM|\d+\s*[gG]\b", re.I)
+
+
+def packaging_hits(name, i):
+    hits = []
+    for line in open(f"{B}/{name}/segocr/{i:02d}.jsonl"):
+        d = json.loads(line)
+        for x, y, w, h, c, t in d["t"]:
+            subtitle = abs(x + w / 2 - 0.5) < 0.16 and 0.02 <= h <= 0.08 and w >= 0.12 and y >= 0.4
+            if c >= 0.5 and ((CJK.search(t) and not subtitle) or BRAND.search(t)):
+                hits.append((round((int(d["f"][2:7]) - 1) * 0.1, 1), t[:14]))
+    return hits
 
 
 def seg_ocr(name, i, s):
@@ -103,6 +119,10 @@ for name in sys.argv[1:]:
     bands = []
     for i, s in enumerate(S):
         bands += bands_for(name, i, s)
+        p = packaging_hits(name, i)
+        if len(p) >= 2:
+            print(f"  !! {name} shot {i} ({s['src']} @{s['start']:.2f}s): non-subtitle text {p[:3]} -> view it; "
+                  f"if it is packaging/brand/watermark, replace this range in plan.json and rebuild")
     json.dump(bands, open(f"{B}/{name}/bands.json", "w"), indent=1)
     h = [b["bottom"] - b["top"] for b in bands]
     print(f"{name}: {len(bands)} bands over {len(S)} shots, h {min(h)}-{max(h)}, "
